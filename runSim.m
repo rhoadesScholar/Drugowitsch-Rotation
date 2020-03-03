@@ -15,9 +15,16 @@ function [MusLL, Vars] = runSim(As, C, muPrior, initVar, options)%labels, dims, 
         options.N = 100;
         options.dt = .1;
         options.a = 1.;
-        options.epsilon = .1;    
+        options.epsilon = 1;    
         options.agnt = false;
         options.noiseVary = true;
+        options.Markov = false;
+        options.TRANS = [0.97 0.03;
+                         0.83 0.17;];
+        options.EMIS = [1 0;
+                        0 1];
+        options.SYMBOLS = cat(3, As{:});
+        options.CostFun = 'MSE';
     end
     
     arg = fieldnames(options);
@@ -27,17 +34,21 @@ function [MusLL, Vars] = runSim(As, C, muPrior, initVar, options)%labels, dims, 
     
     for i = 1:length(As)
           KMs(i) = KalmanModel(As{i}, C, muPrior{i}, initVar{i}, a, ceil(endT/dt)+1);
-          SWs(i) = SimWorld(As{i}, C, muInit{i}, emitVar{i}, endT, dt);
+          if ~Markov
+              SWs(i) = SimWorld(As{i}, C, muInit{i}, initVar{i}, emitVar{i}, endT, dt);
+          elseif i == 1
+              SWs = MarkovSimWorld(As, C, muInit, initVar, emitVar, endT, dt, TRANS, EMIS);
+          end
     end
+    
     if agnt && length(KMs) > 1
-        Bond007 = Agent(KMs, epsilon, SWs);
+        Bond007 = Agent(KMs, epsilon, SWs, CostFun);
+        tempVars = NaN(N, size(KMs(1).A,1), size(KMs(1).A,2), ceil(endT/dt)+1);
         agnt = true;
     else
         agnt = false;
     end
     
-    Vars = cat(4, KMs.Vars);
-
     MusLL = NaN(length(SWs), length(KMs)+agnt, length(muPrior{1})+1, ceil(endT/dt)+1);
     for s = 1:length(SWs)
         SEs = NaN(length(KMs)+agnt, N, length(muPrior{1})+1, ceil(endT/dt)+1);
@@ -51,11 +62,17 @@ function [MusLL, Vars] = runSim(As, C, muPrior, initVar, options)%labels, dims, 
             end
 
             if agnt
-                SEs(k+1,i,1:end-1,:) = Bond007.getMetaMus(Mus, Zs);        
+                [SEs(k+1,i,:,:), ~, tempVars(i,:,:,:)] = Bond007.getMetaMus(Mus, Zs, Ys);        
             end
 
         end
         MusLL(s,:,:,:) =  squeeze(nanmean(SEs, 2));
+    end
+    
+    if agnt
+        Vars = cat(4, KMs.Vars, squeeze(nanmean(tempVars,1)));
+    else
+        Vars = cat(4, KMs.Vars);
     end
     
     if noiseVary

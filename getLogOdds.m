@@ -1,6 +1,6 @@
 function logOdds = getLogOdds(MusLL)
     odds = @(a) [diff(a), diff(fliplr(a))];
-    if size(MusLL) == 4
+    if length(size(MusLL)) == 4
         temp = squeeze(MusLL(:,1:end-1,end,:));
         logOdds = NaN(size(temp));
         for i = 1:size(temp,1)

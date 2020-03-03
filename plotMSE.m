@@ -9,20 +9,21 @@ function plotMSE(MusLL, dims, Vars, allT, labels)
             subplot(2, 2, 1)
             plot(allT, squeeze(MSE(j, i, 1, :)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'DisplayName', sprintf('W_{%s}: M_{%s}', labels{1, j}, labels{2, i}))
             hold on
-            if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined')
+            if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined') && ~contains(labels{2, i}, 'Decided')
                 plot(allT, squeeze(mVars(i, 1,:)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'LineStyle', ':', 'DisplayName', sprintf('Predicted: M_{%s}', labels{2, i}));
             end
             xlabel("time")
             ylabel("mean square error")
             set(gca, 'XScale', 'log')
             set(gca, 'YScale', 'log')
+            legend('Location', 'best')
             title("Position MSE")
 
             if size(MSE,3) > 3
                 subplot(2, 2, 2)
                 plot(allT, squeeze(MSE(j, i, 2, :)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'DisplayName', sprintf('W_{%s}: M_{%s}', labels{1, j}, labels{2, i}))
                 hold on
-                if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined')
+                if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined') && ~contains(labels{2, i}, 'Decided')
                     plot(allT, squeeze(mVars(i, 2,:)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'LineStyle', ':', 'DisplayName', sprintf('Predicted: M_{%s}', labels{2, i}));
                 end
                 xlabel("time")
@@ -35,7 +36,7 @@ function plotMSE(MusLL, dims, Vars, allT, labels)
             subplot(2, 2, 3)
             plot(allT, squeeze(MSE(j, i, end-1, :)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'DisplayName', sprintf('W_{%s}: M_{%s}', labels{1, j}, labels{2, i}))
             hold on
-            if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined')
+            if j == size(MSE, 1) && ~contains(labels{2, i}, 'Combined') && ~contains(labels{2, i}, 'Decided')
                 plot(allT, squeeze(mVars(i, end,:)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'LineStyle', ':', 'DisplayName', sprintf('Predicted: M_{%s}', labels{2, i}));
             end
             xlabel("time")
@@ -46,7 +47,6 @@ function plotMSE(MusLL, dims, Vars, allT, labels)
 
             subplot(2, 2, 4)
             plot(allT, squeeze(MSE(j, i, end, :)), 'Color', colors((j-1)*size(MSE,2) + i, :), 'LineWidth', width, 'DisplayName', sprintf('W_{%s}: M_{%s}', labels{1, j}, labels{2, i}))
-            legend
             hold on
             xlabel("time")
             ylabel("Log Evidence")

@@ -1,12 +1,14 @@
-classdef SimWorld < handle
+classdef MarkovSimWorld < handle
     properties
-        A
+        As
         C
         muInit
         initVar
         emitVar
         endT
         dt
+        TRANS
+        EMIS
         endI
         allT
         allAs        
@@ -15,7 +17,7 @@ classdef SimWorld < handle
     end
     
     methods
-        function obj = SimWorld(varargin)
+        function obj = MarkovSimWorld(varargin)
             props = properties(obj);
             for v = varargin
                 obj.(props{1}) = v{1};
@@ -29,24 +31,27 @@ classdef SimWorld < handle
             obj.endI = ceil(obj.endT/obj.dt);
             obj.allT = 0:obj.dt:obj.endI*obj.dt;
             
-            obj.allAs = NaN([size(obj.A), obj.endI+1]);
-            for i = 0:obj.endI
-                obj.allAs(:,:,i+1) = obj.A^i;
-            end
+            obj.allAs = @() obj.getAllAs();
             
-            obj.blankZs = NaN(length(obj.muInit), obj.endI+1);
+            obj.blankZs = NaN(length(obj.muInit{1}), obj.endI+1);
             obj.blankYs = NaN(min(size(obj.C)), obj.endI+1);
         end
         
         function [Zs, Ys] = getStates(obj)
-            Z = (obj.muInit + sqrt(obj.initVar).*randn(size(obj.muInit)));
-            randos = mvnrnd(zeros(size(obj.C*obj.C',1),1), obj.C*diag(obj.emitVar)*obj.C', obj.endI+1)';
+            [theseAs, seq] = obj.allAs();
+            Z = (obj.muInit{seq(1)} + sqrt(obj.initVar{seq(1)}).*randn(size(obj.muInit{seq(1)})));
+            randos = cell2mat(cellfun(@(Var) mvnrnd(zeros(min(size(obj.C)),1), obj.C*diag(Var)*obj.C'), obj.emitVar(seq), 'UniformOutput', false))';
             Zs = obj.blankZs;
             Ys = obj.blankYs;
-            for i = 1:size(obj.allAs,3)
-                Zs(:,i) = obj.allAs(:,:,i)*Z;
+            for i = 1:size(theseAs,3)
+                Zs(:,i) = theseAs(:,:,i)*Z;
                 Ys(:,i) = obj.C*Zs(:,i) + randos(:,i);
             end
+        end
+        
+        function [allAs, seq] = getAllAs(obj)
+            seq = hmmgenerate(obj.endI+1, obj.TRANS, obj.EMIS);
+            allAs = cumMtimes(obj.As(seq));
         end
     end
     
