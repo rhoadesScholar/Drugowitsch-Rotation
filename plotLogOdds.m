@@ -4,7 +4,7 @@ function plotLogOdds(MusLL, allT, labels)
     figure;
     for i = 1:size(logOdds,1)
        for j = 1:size(logOdds,2)
-            plot(allT, exp(squeeze(logOdds(i,j,:))), 'LineWidth',2, 'Color', colors((j-1)*size(logOdds,2) + i, :), 'DisplayName', sprintf('W_{%s}: M_{%s}/M_{%s}', labels{1, j}, labels{2, 1}, labels{2, 2}))%will only work for 2 model case
+            plot(allT, exp(squeeze(logOdds(i,j,:))), 'LineWidth',2, 'Color', colors((j-1)*size(logOdds,2) + i, :), 'DisplayName', sprintf('W_{%s}: M_{%s}/M_{%s}', labels{1, i}, labels{2, 1}, labels{2, 2}))%will only work for 2 model case
             hold on
             xlabel("time")
             ylabel("Log Odds Ratio")
