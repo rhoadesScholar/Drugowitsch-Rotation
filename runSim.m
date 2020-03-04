@@ -83,7 +83,7 @@ function [MusLL, Vars] = runSim(As, C, muPrior, initVar, options)%labels, dims, 
         MusLL= temp;
     end
     
-    plotMSE(MusLL, dims, Vars, SWs(1).allT, labels)
+    plotMSE(MusLL, dims, Vars, SWs(1).allT, labels, agnt)
     return
 end
 

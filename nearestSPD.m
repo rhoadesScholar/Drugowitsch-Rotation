@@ -30,12 +30,20 @@ elseif (r == 1) && (A <= 0)
   return
 end
 
+[~,p] = cholcov(A);
+if p == 0
+    % A is already SPD
+    Ahat = A;
+    success = true;
+    return
+end
+
 % symmetrize A into B
 B = (A + A')/2;
 
 % Compute the symmetric polar factor of B. Call it H.
 % FALSE CLAIM: "Clearly H is itself SPD." Verify/fix
-[U,Sigma,V] = svd(B);
+[~,Sigma,V] = svd(B);
 H = V*Sigma*V';
 
 if ~issymmetric(H)
@@ -66,7 +74,7 @@ end
 p = 1;
 k = 0;
 while p ~= 0 && success
-  [R,p] = chol(Ahat);
+  [~,p] = chol(Ahat);
   k = k + 1;
   if p ~= 0
     % Ahat failed the chol test. It must have been just a hair off,

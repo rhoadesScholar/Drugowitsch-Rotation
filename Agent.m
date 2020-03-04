@@ -45,7 +45,7 @@ classdef Agent < handle
         end
         
         function [SEs, metaMus, metaVars] = getMetaMus(obj, Mus, Zs, Ys)
-            ps = softmax(getLogOdds(Mus));        
+            ps = softmax(obj.getLogOdds(Mus));        
             metaVars = NaN([size(obj.KMs(1).A), size(Ys,2)]);
             LEvid = NaN(1,size(Ys,2));
             
@@ -76,12 +76,13 @@ classdef Agent < handle
 %                     cdfFunc = @(X, t) diff(cdf(tempDist, [X-obj.E(X,ps(:,1)); X+obj.E(X,ps(:,1))])); 
                     cdfFunc = @(X) arrayfun(@(m) diff(cdf(tempDist, [X(m,:)-obj.E(X(m,:),ps(:,1)); X(m,:)+obj.E(X(m,:),ps(:,1))])), 1:size(X,1));   
                     metaMus(:,1) = patternsearch(@(X) cdfFunc(X,1), ps(:,1)'*tempDist.mu, [], [], [], [], lb(:,1), ub(:,1), [], obj.opts);                   
-                    
+                    Ydists = cell(1, size(Ys,2));
                     Ydists{1} = gmdistribution(reshape(cell2mat(arrayfun(@(k) obj.KMs(k).C * obj.KMs(k).A * obj.KMs(k).muPrior, 1:length(obj.KMs), 'UniformOutput', false)), [], length(obj.KMs))',...
                                     reshape(cell2mat(arrayfun(@(k) obj.KMs(k).C * obj.Sigma(1, k) * obj.KMs(k).C', 1:length(obj.KMs), 'UniformOutput', false)), size(obj.KMs(1).C,1), [], length(obj.KMs)),...
                                     ps(:,1));
                     mahalT = Ydists{1}.mahal(Ys(:,1)');
-                    pMahalT = (exp(-mahalT) ./ nansum(exp(-mahalT)))';
+%                     pMahalT = (exp(-mahalT) ./ nansum(exp(-mahalT)))';
+                    pMahalT = 1 - (mahalT./nansum(mahalT))';
                     if any(pMahalT <= 0)
                             pMahalT = pMahalT -  min(pMahalT) + eps;
                     end
@@ -92,29 +93,39 @@ classdef Agent < handle
                     LEvid(1) = log(Ydists{1}.pdf(Ys(:,1)'));
                     %End Initialize
                                         
-                    nextMus = @(lastMus) reshape(cell2mat(arrayfun(@(k) obj.KMs(k).A * lastMus, 1:length(obj.KMs), 'UniformOutput', false)), [], length(obj.KMs))';
-                    nextSigs = @(lastSig) reshape(cell2mat(arrayfun(@(k) obj.KMs(k).A * lastSig * obj.KMs(k).A', 1:length(obj.KMs), 'UniformOutput', false)), size(obj.KMs(1).A,1), size(obj.KMs(1).A,2), length(obj.KMs));                    
+                    P = @(lastVar, A) A*lastVar*A';
+                    K = @(lastVar, k) (P(lastVar, obj.KMs(k).A) * obj.KMs(k).C') / ...
+                                      (obj.KMs(k).C*P(lastVar, obj.KMs(k).A)*obj.KMs(k).C' + obj.KMs(k).C*obj.KMs(k).initVar*obj.KMs(k).C');
+                    nextVars = @(lastVar) reshape(cell2mat(arrayfun(@(k) nearestSPD((eye(size(obj.KMs(k).C,2)) - K(lastVar, k)*obj.KMs(k).C) * P(lastVar, obj.KMs(k).A)), ...
+                                                1:length(obj.KMs), 'UniformOutput', false)), size(obj.KMs(1).A,1), size(obj.KMs(1).A,2), length(obj.KMs));                    
                     
-                    eYsigs = @(sigs) reshape(cell2mat(arrayfun(@(k) obj.KMs(k).C * sigs(:,:,k) * obj.KMs(k).C', 1:length(obj.KMs), 'UniformOutput', false)), size(obj.KMs(1).C,1), [], length(obj.KMs));
+                    nextMus = @(lastMus, lastVar, Y) reshape(cell2mat(arrayfun(@(k) obj.KMs(k).A * lastMus + K(lastVar, k)*(Y - obj.KMs(k).C*obj.KMs(k).A*lastMus), ...
+                                                1:length(obj.KMs), 'UniformOutput', false)), [], length(obj.KMs))';
+                                            
+                    eYvars = @(sigs) reshape(cell2mat(arrayfun(@(k) nearestSPD(obj.KMs(k).C * sigs(:,:,k) * obj.KMs(k).C'), 1:length(obj.KMs), 'UniformOutput', false)), size(obj.KMs(1).C,1), [], length(obj.KMs));
                     eYs = @(mus) reshape(cell2mat(arrayfun(@(k) obj.KMs(k).C * mus(:,k), 1:length(obj.KMs), 'UniformOutput', false)), [], length(obj.KMs))';
-                    
+                                        
                     for i = 2:size(Ys,2)
-                        tempSigs = nextSigs(metaVars(:,:,i-1));
-                        tempMus = nextMus(metaMus(:,i-1));
                         
-                        Ydists{i} = gmdistribution(eYs(tempMus'), eYsigs(tempSigs), pMahalTm1);
+                        tempVars = nextVars(metaVars(:,:,i-1));
+                        tempMus = nextMus(metaMus(:,i-1), metaVars(:,:,i-1), Ys(:,i));
+                        
+                        tempYvars = eYvars(tempVars);
+                        
+                        Ydists{i} = gmdistribution(eYs(tempMus'), eYvars(tempVars), pMahalTm1);
                         pMahalTm1 = pMahalT;
                         mahalT = Ydists{i}.mahal(Ys(:,i)');
-                        pMahalT = (exp(-mahalT) ./ nansum(exp(-mahalT)))';
+%                         pMahalT = (exp(-mahalT) ./ nansum(exp(-mahalT)))';
+                        pMahalT = 1 - (mahalT./nansum(mahalT))';
                         if any(pMahalT <= 0)
                                 pMahalT = pMahalT -  min(pMahalT) + eps;
                         end
                         
-                        tempDist = gmdistribution(tempMus, tempSigs, pMahalT);%OBJ.SIGMAS NEEDS TO BE FIXED TO BE THE ACTUAL VARIANCE
+                        tempDist = gmdistribution(tempMus, tempVars, pMahalT);%OBJ.SIGMAS NEEDS TO BE FIXED TO BE THE ACTUAL VARIANCE
 %                         cdfFunc = @(X) diff(cdf(tempDist, [X-obj.E(X,pMahalT); X+obj.E(X,pMahalT)]));   
                         cdfFunc = @(X) arrayfun(@(m) diff(cdf(tempDist, [X(m,:)-obj.E(X(m,:),pMahalT); X(m,:)+obj.E(X(m,:),pMahalT)])), 1:size(X,1));   
                         metaMus(:,i) = patternsearch(@(X) cdfFunc(X), pMahalT'*tempDist.mu, [], [], [], [], lb(:,i), ub(:,i), [], obj.opts);
-                        metaVars(:,:,i) = thisSig(tempSigs, pMahalT);
+                        metaVars(:,:,i) = thisSig(tempVars, pMahalT);
                         LEvid(i) = LEvid(i-1) + log(Ydists{1}.pdf(Ys(:,1)'));
                     end
             end                      
@@ -162,6 +173,20 @@ classdef Agent < handle
             end
             return
         end
-        
+       
+        function logOdds = getLogOdds(~, MusLL)
+            odds = @(a) [diff(a), diff(fliplr(a))];
+            if length(size(MusLL)) == 4
+                temp = squeeze(MusLL(:,1:end-1,end,:));
+                logOdds = NaN(size(temp));
+                for i = 1:size(temp,1)
+                    logOdds(i,:,:) = reshape(cell2mat(arrayfun(@(j) odds(squeeze(temp(i,:,j))), 1:size(temp,3), 'UniformOutput', false)), 1, size(temp,2), size(temp,3));
+                end
+            else
+                temp = squeeze(MusLL(:,end,:));
+                logOdds = reshape(cell2mat(arrayfun(@(j) odds(squeeze(temp(:,j))), 1:size(temp,2), 'UniformOutput', false)), size(temp,1), size(temp,2));
+            end
+
+        end
     end
 end
